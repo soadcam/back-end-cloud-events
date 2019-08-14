@@ -48,7 +48,7 @@ router.get("/categories", validateAuth, async (req, res) => {
 });
 
 router.get("/types", validateAuth, async (req, res) => {
-    const sql = 'SELECT eventTypeId, description FROM EVENTTYPES';
+    const sql = 'SELECT eventTypeId, description FROM EventTypes';
     execQuery(sql, res);
 });
 
@@ -102,20 +102,21 @@ router.get("/users/:username", async (req, res) => {
 });
 
 router.get("/events", validateAuth, async (req, res) => {
-    const sql = `select e.eventId,
+    const sql = `SELECT e.eventId,
 						e.name, 
                         e.place, 
                         e.address, 
-                        e.startDate, 
-                        e.finishDate, 
+                        DATE_FORMAT(e.startDate, '%Y-%m-%d') AS startDate, 
+                        DATE_FORMAT(e.finishDate, '%Y-%m-%d') AS finishDate, 
                         ec.description AS category, 
                         et.description AS type 
                 FROM    Events e
-                INNER JOIN eventCategories ec
+                INNER JOIN EventCategories ec
                     ON  e.eventCategoryId = ec.eventCategoryId
-                INNER JOIN eventTypes et
+                INNER JOIN EventTypes et
                     ON  e.eventTypeId = et.eventTypeId
-                WHERE   e.UserCreaterId = ?`;
+                WHERE   e.UserCreaterId = ?
+				ORDER BY e.eventId DESC`;
     execQuery(sql, res, [req.user.userId]);
 });
 
@@ -139,8 +140,8 @@ router.get("/events/:eventId", validateAuth, async (req, res) => {
 						name,
 						place,
 						address,
-						startDate,
-						finishDate,
+						DATE_FORMAT(startDate, '%Y-%m-%d') AS startDate, 
+                        DATE_FORMAT(finishDate, '%Y-%m-%d') AS finishDate, 
 						eventCategoryId,
 						eventTypeId 
 				FROM 	Events 
