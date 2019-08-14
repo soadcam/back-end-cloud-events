@@ -67,23 +67,23 @@ router.post("/users", async (req, res) => {
 });
 
 router.post("/login", async (req, res) => {
-	console.log(req.body);
     const sql = 'SELECT userId, email AS username FROM Users WHERE email = ? AND password = ?';
     try {
         con.connect(function (err) {
             con.query(sql, [req.body.username, req.body.password], function (err, result) {
-                if (!result) {
-                    res.status(400).send({ error: 'Usuario o contraseña inválidos.' });
-                    return;
-                }
-                var tokenData = {
-                    userId: result.userId,
-                    username: result.username
-                };
-                var token = jwt.sign(tokenData, privateKey, {
-                    expiresIn: 60 * 60 * 24 // expires in 24 hours
-                });
-                res.send({ token });
+				if (result && result.length > 0) {
+					const user = result[0];
+					var tokenData = {
+						userId: user.userId,
+						username: user.username
+					};
+					var token = jwt.sign(tokenData, privateKey, {
+						expiresIn: 60 * 60 * 24 // expires in 24 hours
+					});
+					res.send({ token });
+				}
+				else
+					res.status(400).send({ error: 'Usuario o contraseña inválidos.' });
             });
         });
     }
@@ -102,7 +102,8 @@ router.get("/users/:username", async (req, res) => {
 });
 
 router.get("/events", validateAuth, async (req, res) => {
-    const sql = `select e.name, 
+    const sql = `select e.eventId,
+						e.name, 
                         e.place, 
                         e.address, 
                         e.startDate, 
@@ -119,17 +120,32 @@ router.get("/events", validateAuth, async (req, res) => {
 });
 
 router.post("/events", validateAuth, async (req, res) => {
-    const sql = 'INSERT INTO Events (name, place, address, startDate, finishDate, eventCategoryId, eventTypeId) VALUES (?, ?, ?, ?, ?, ?, ?)';
+    const sql = 'INSERT INTO Events (UserCreaterId, name, place, address, startDate, finishDate, eventCategoryId, eventTypeId) VALUES (?, ?, ?, ?, ?, ?, ?, ?)';
     execQuery(sql, res,
         [
-            req.params.name,
-            req.params.place,
-            req.params.address,
-            req.params.startDate,
-            req.params.finishDate,
-            req.params.eventCategoryId,
-            req.params.eventTypeId
+			req.user.userId,
+            req.body.name,
+            req.body.place,
+            req.body.address,
+            req.body.startDate,
+            req.body.finishDate,
+            req.body.eventCategoryId,
+            req.body.eventTypeId
         ]);
+});
+
+router.get("/events/:eventId", validateAuth, async (req, res) => {
+    const sql = `SELECT	eventId,
+						name,
+						place,
+						address,
+						startDate,
+						finishDate,
+						eventCategoryId,
+						eventTypeId 
+				FROM 	Events 
+				WHERE 	eventId = ?`;
+    execQuery(sql, res, [req.params.eventId]);
 });
 
 router.put("/events/:eventId", validateAuth, async (req, res) => {
@@ -143,44 +159,47 @@ router.put("/events/:eventId", validateAuth, async (req, res) => {
                         eventTypeId = ?
                 WHERE   eventId = ?`;
     execQuery(sql, res, [
-        req.params.name,
-        req.params.place,
-        req.params.address,
-        req.params.startDate,
-        req.params.finishDate,
-        req.params.eventCategoryId,
-        req.params.eventTypeId,
-        req.params.eventTypeId
+        req.body.name,
+        req.body.place,
+        req.body.address,
+        req.body.startDate,
+        req.body.finishDate,
+        req.body.eventCategoryId,
+        req.body.eventTypeId,
+        req.params.eventId
     ]);
 });
 
 router.delete("/events/:eventId", validateAuth, async (req, res) => {
     const sql = 'DELETE FROM Events WHERE eventId = ?';
-    execQuery(sql, res, [req.params.eventTypeId]);
+    execQuery(sql, res, [req.params.eventId]);
 });
 
 let allowCrossDomain = function(req, res, next) {
   res.header('Access-Control-Allow-Origin', "*");
   res.header('Access-Control-Allow-Headers', "*");
+  res.header('Access-Control-Allow-Methods', "GET, POST, OPTIONS, PUT, DELETE");
   next();
 }
 app.use(allowCrossDomain);
 
 app.use("/api", router);
 
-http.createServer(app).listen(8001, () => {
-    console.log('Server started at http://localhost:8001')
+http.createServer(app).listen(8080, () => {
+    console.log('Server started at http://172.24.42.63:8080')
 })
 
 function execQuery(sql, res, params) {
     try {
         con.connect(function (err) {
             con.query(sql, params, function (err, result) {
+				if (err) console.log(err);
                 res.send(result);
             });
         });
     }
     catch (err) {
+		if (err) console.log(err);
         con.end();
         res.status(500).send({ error: err });
     }
